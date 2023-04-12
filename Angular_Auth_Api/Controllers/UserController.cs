@@ -4,6 +4,9 @@ using Angular_Auth_Api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -40,8 +43,10 @@ namespace Angular_Auth_Api.Controllers
                     Message="Password is incorrect"
                 });
             }
+            user.Token = CreateJWT(user);
             return Ok(new
             {
+                Token = user.Token,
                 Message="Login succesful"
             });
         }
@@ -83,6 +88,14 @@ namespace Angular_Auth_Api.Controllers
                 Message="User register"
             });
         }
+
+
+        [HttpGet]
+        public async Task<IActionResult> Getallusers()
+        {
+            return Ok(await _authContext.Users.ToListAsync());
+        } 
+
         private Task<Boolean> CheckUserNameExist(string username) =>
             _authContext.Users.AnyAsync(x => x.Username == username);
 
@@ -106,6 +119,28 @@ namespace Angular_Auth_Api.Controllers
                 sb.Append("Password should contain special character" + Environment.NewLine);
             }
             return sb.ToString();
+        }
+
+
+        private string CreateJWT(User user)
+        {
+            var jwtTokenHandler =new JwtSecurityTokenHandler();
+            var key = System.Text.Encoding.ASCII.GetBytes("veryverysecret.....");
+            var identity = new ClaimsIdentity(new Claim[]
+            {
+                new Claim(ClaimTypes.Role,user.Role),
+                new Claim(ClaimTypes.Name,$"{user.FirstName} {user.LastName}"),
+            });
+            var credentials = new SigningCredentials(new SymmetricSecurityKey(key),SecurityAlgorithms.HmacSha256);
+
+            var tokenDescripter = new SecurityTokenDescriptor()
+            {
+                Subject= identity,
+                Expires=DateTime.Now.AddDays(1),
+                SigningCredentials=credentials,
+            };
+            var token=jwtTokenHandler.CreateToken(tokenDescripter);
+            return jwtTokenHandler.WriteToken(token);
         }
     }
 }
